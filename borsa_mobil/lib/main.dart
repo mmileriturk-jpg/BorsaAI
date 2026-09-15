@@ -1,44 +1,43 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 void main() {
   runApp(const BorsaAIApp());
 }
 
 class BorsaAIApp extends StatelessWidget {
-  const BorsaAIApp({Key? key}) : super(key: key);
+  const BorsaAIApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'BorsaAI Pro',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFF121212),
-        primaryColor: const Color(0xFF00E676),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00E676),
-          secondary: Color(0xFF00E676),
-        ),
       ),
       home: const AnaSayfa(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class AnaSayfa extends StatefulWidget {
-  const AnaSayfa({Key? key}) : super(key: key);
+  const AnaSayfa({super.key});
 
   @override
-  _AnaSayfaState createState() => _AnaSayfaState();
+  State<AnaSayfa> createState() => _AnaSayfaState();
 }
 
 class _AnaSayfaState extends State<AnaSayfa> {
+  // Render Canlı Backend URL Adresi
   final String backendUrl = 'https://borsaai-41qx.onrender.com';
+  
   List<dynamic> hisseler = [];
   bool isLoading = true;
-  String errorMessage = '';
+  String mesaj = '';
 
   @override
   void initState() {
@@ -46,73 +45,67 @@ class _AnaSayfaState extends State<AnaSayfa> {
     hisseleriGetir();
   }
 
+  // Canlı sunucudan hisseleri çeken fonksiyon
   Future<void> hisseleriGetir() async {
     setState(() {
       isLoading = true;
-      errorMessage = '';
+      mesaj = '';
     });
 
     try {
       final response = await http.get(Uri.parse('$backendUrl/hisseler'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
         setState(() {
-          if (data is List) {
-            hisseler = data;
-          } else if (data is Map && data.containsKey('hisseler')) {
-            hisseler = data['hisseler'];
-          } else {
-            hisseler = [];
-          }
+          hisseler = jsonDecode(response.body);
           isLoading = false;
         });
       } else {
         setState(() {
-          errorMessage = 'Sunucu hatası: ${response.statusCode}';
           isLoading = false;
+          mesaj = 'Sunucu hatası: ${response.statusCode}';
         });
       }
     } catch (e) {
       setState(() {
-        errorMessage = 'Bağlantı kurulamadı. İnternetinizi veya sunucuyu kontrol edin.';
         isLoading = false;
+        mesaj = 'Bağlantı hatası: $e';
       });
     }
   }
 
-  Future<void> robotuTetikle() async {
+  // Robotu çalıştıran POST isteği
+  Future<void> robotuCalistir() async {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Robot işlem tetikleniyor, sunucuya bağlanılıyor...')),
-      );
-
       final response = await http.post(Uri.parse('$backendUrl/robot-calistir'));
-      
       if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        String detays = data['detay'] ?? 'Emirler iletildi.';
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Başarılı: $detays'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['message'] ?? 'Robot başarıyla çalıştırıldı.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Robot çalıştırılamadı!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sunucu yanıt verdi ancak işlem başarısız (${response.statusCode}).'),
-            backgroundColor: Colors.orange,
+            content: Text('Hata: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Robota ulaşılamadı, ağ bağlantınızı kontrol edin.'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 
@@ -120,114 +113,96 @@ class _AnaSayfaState extends State<AnaSayfa> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BorsaAI Pro - Algo-Trading'),
-        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('BorsaAI Pro - Canlı BIST'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.smart_toy, color: Color(0xFF00E676)),
-            tooltip: 'Robotu Çalıştır',
-            onPressed: robotuTetikle,
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Yenile',
             onPressed: hisseleriGetir,
+            tooltip: 'Verileri Yenile',
           ),
         ],
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E676)))
-          : errorMessage.isNotEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
-                        const SizedBox(height: 12),
-                        Text(
-                          errorMessage,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white70, fontSize: 16),
+      body: Column(
+        children: [
+          if (mesaj.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Text(
+                mesaj,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+              ),
+            ),
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : hisseler.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Hisse verisi bulunamadı.',
+                          style: TextStyle(color: Colors.white70),
                         ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00E676),
-                            foregroundColor: Colors.black,
-                          ),
-                          onPressed: hisseleriGetir,
-                          child: const Text('Tekrar Dene'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: hisseler.length,
-                  itemBuilder: (context, index) {
-                    final hisse = hisseler[index];
-                    final double degisim = (hisse['degisim'] ?? 0.0).toDouble();
-                    final double rsi = (hisse['rsi'] ?? 50.0).toDouble();
-                    final String detay = hisse['detay'] ?? '';
-
-                    return Card(
-                      color: const Color(0xFF1E1E1E),
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ListTile(
-                          title: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                hisse['sembol'] ?? 'Bilinmiyor',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
-                              ),
-                              Text(
-                                '${hisse['fiyat']} TL',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amberAccent, fontSize: 16),
-                              ),
-                            ],
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 6),
-                              Text('RSI: $rsi | Durum: $detay', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Text('Değişim: ', style: TextStyle(color: Colors.grey)),
-                                  Text(
-                                    '${degisim >= 0 ? '+' : ''}$degisim%',
-                                    style: TextStyle(
-                                      color: degisim >= 0 ? Colors.greenAccent : Colors.redAccent,
+                      )
+                    : ListView.builder(
+                        itemCount: hisseler.length,
+                        itemBuilder: (context, index) {
+                          final hisse = hisseler[index];
+                          return Card(
+                            color: const Color(0xFF1E1E1E),
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blueAccent,
+                                child: Text(
+                                  hisse['kod'] ?? '',
+                                  style: const TextStyle(
+                                      color: Colors.white,
                                       fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                                      fontSize: 12),
+                                ),
                               ),
-                            ],
-                          ),
-                          trailing: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF00E676),
-                              foregroundColor: Colors.black,
+                              title: Text(
+                                hisse['kod'] ?? '',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                'Fiyat: ₺${hisse['fiyat']}',
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                              trailing: Chip(
+                                label: Text(
+                                  'RSI: ${hisse['rsi']}',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                backgroundColor: Colors.teal.shade800,
+                              ),
                             ),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('${hisse['sembol']} için manuel işlem tetiklendi.')),
-                              );
-                            },
-                            child: const Text('İşlem Yap'),
-                          ),
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                backgroundColor: Colors.green.shade700,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
+              ),
+              onPressed: robotuCalistir,
+              icon: const Icon(Icons.play_arrow, color: Colors.white),
+              label: const Text(
+                'Robotu Çalıştır (POST)',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
