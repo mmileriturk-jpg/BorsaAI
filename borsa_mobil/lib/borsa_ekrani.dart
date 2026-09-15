@@ -1,106 +1,116 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
-void main() {
-  runApp(const BorsaApp());
-}
+class BorsaEkrani extends StatefulWidget {
+  final Function(String, double, int) onIslem;
+  final String hisseAdi;
+  final double guncelFiyat;
 
-class BorsaApp extends StatelessWidget {
-  const BorsaApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'BorsaAI',
-      theme: ThemeData.dark(),
-      home: const FirsatlarSayfasi(),
-    );
-  }
-}
-
-class FirsatlarSayfasi extends StatefulWidget {
-  const FirsatlarSayfasi({super.key});
+  const BorsaEkrani({
+    Key? key,
+    required this.onIslem,
+    required this.hisseAdi,
+    required this.guncelFiyat,
+  }) : super(key: key);
 
   @override
-  State<FirsatlarSayfasi> createState() => _FirsatlarSayfasiState();
+  State<BorsaEkrani> createState() => _BorsaEkraniState();
 }
 
-class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
-  List<dynamic> firsatlar = [];
-  bool yukleniyor = true;
+class _BorsaEkraniState extends State<BorsaEkrani> {
+  final TextEditingController _adetController = TextEditingController();
+  bool _isLoading = false;
+  Map<String, dynamic>? _apiData;
 
   @override
   void initState() {
-  super.initState();
-    verileriCek();
+    super.initState();
+    _verileriGetir();
   }
 
-  Future<void> verileriCek() async {
+  // Canlı Render bulut sunucumuzdan veri çeken fonksiyon
+  Future<void> _verileriGetir() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      final yanit = await http.get(Uri.parse('http://127.0.0.1:8000/tara'));
-      if (yanit.statusCode == 200) {
+      // Yerel IP yerine Render bulut adresimiz kullanılıyor
+      final response = await http.get(
+        Uri.parse('https://borsaai-41qx.onrender.com/hisse/${widget.hisseAdi}'),
+      );
+
+      if (response.statusCode == 200) {
         setState(() {
-          firsatlar = json.decode(yanit.body);
-          yukleniyor = false;
+          _apiData = jsonDecode(response.body);
         });
       }
     } catch (e) {
+      debugPrint("Bağlantı hatası: $e");
+    } finally {
       setState(() {
-        yukleniyor = false;
+        _isLoading = false;
       });
-      print("Bağlantı hatası: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('BorsaAI Canlı Tarama'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              setState(() { yukleniyor = true; });
-              verileriCek();
-            },
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            "${widget.hisseAdi} İşlem Paneli",
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            "Güncel Fiyat: ${widget.guncelFiyat} TL",
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _adetController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Adet Giriniz',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton(
+                onPressed: () {
+                  int adet = int.tryParse(_adetController.text) ?? 0;
+                  if (adet > 0) {
+                    widget.onIslem(widget.hisseAdi, widget.guncelFiyat, adet);
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text('SAT', style: TextStyle(color: Colors.red, fontSize: 16)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  int adet = int.tryParse(_adetController.text) ?? 0;
+                  if (adet > 0) {
+                    widget.onIslem(widget.hisseAdi, widget.guncelFiyat, adet);
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+                child: const Text('AL', style: TextStyle(color: Colors.white, fontSize: 16)),
+              ),
+            ],
           ),
         ],
       ),
-      body: yukleniyor
-          ? const Center(child: CircularProgressIndicator())
-          : firsatlar.isEmpty
-              ? const Center(child: Text('Şu an eşleşen fırsat bulunamadı.'))
-              : ListView.builder(
-                  itemCount: firsatlar.length,
-                  itemBuilder: (context, index) {
-                    final item = firsatlar[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.green,
-                          child: Text(item['hisse'][0]),
-                        ),
-                        title: Text(
-                          item['hisse'],
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(item['detay']),
-                        trailing: Text(
-                          "${item['fiyat']} TL",
-                          style: const TextStyle(
-                            color: Colors.greenAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
     );
   }
 }
