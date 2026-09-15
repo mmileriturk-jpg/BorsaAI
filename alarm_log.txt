@@ -1,0 +1,4 @@
+[2026-08-27 21:55:27] ALARM: Ereğli Demir Çelik (EREGL.IS) düşüşte! Stop Seviyesi: 36.6700
+[2026-08-27 21:55:27] ALARM: Sasa Polyester (SASA.IS) düşüşte! Stop Seviyesi: 2.2610
+[2026-08-27 22:05:25] ALARM: Ereğli Demir Çelik (EREGL.IS) düşüşte! Stop Seviyesi: 36.6700
+[2026-08-27 22:05:25] ALARM: Sasa Polyester (SASA.IS) düşüşte! Stop Seviyesi: 2.2610
